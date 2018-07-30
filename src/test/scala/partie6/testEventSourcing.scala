@@ -6,22 +6,21 @@ package events {
   import java.util.UUID
 
   /**
-   * Identifiant d'un post
-   */
+    * Identifiant d'un post
+    */
   case class PostId(uuid: UUID)
   object PostId {
     def generate(): PostId = PostId(UUID.randomUUID())
   }
 
   /**
-   * Contenu d'un post
-   */
+    * Contenu d'un post
+    */
   case class PostContent(author: String, title: String, body: String)
 
   /**
-   * Evénements du domaine pour définir le cycle de vie d'un blog post.
-   */
-
+    * Evénements du domaine pour définir le cycle de vie d'un blog post.
+    */
   sealed trait PostEvent {
     def postId: PostId
   }
@@ -34,24 +33,30 @@ package events {
 package model {
   import bonus_event_sourcing.events._
 
-  case class Post(id: PostId, content: PostContent)  {
-      def versions:List[PostContent] = ???
+  case class Post(id: PostId, content: PostContent) {
+    def versions: List[PostContent] = ???
   }
 
-  case class Posts(byId: Map[PostId, Post] = Map.empty, orderedByTimeAdded: Seq[PostId] = Vector.empty) {
+  case class Posts(byId: Map[PostId, Post] = Map.empty,
+                   orderedByTimeAdded: Seq[PostId] = Vector.empty) {
     def get(id: PostId): Option[Post] = byId.get(id)
-    def mostRecent(n: Int): Seq[Post] = orderedByTimeAdded.takeRight(n).reverse.map(byId)
+    def mostRecent(n: Int): Seq[Post] =
+      orderedByTimeAdded.takeRight(n).reverse.map(byId)
 
     def apply(event: PostEvent): Posts = event match {
-      case PostAdded(id, content)  => ???
-      case PostEdited(id, content) => ???
-      case PostDeleted(id)         => ???
+      case PostAdded(id, content) =>
+        Posts(byId + (id -> Post(id, content)), orderedByTimeAdded :+ id)
+      case PostEdited(id, content) =>
+        copy(byId + (id -> Post(id, content)))
+      case PostDeleted(id) =>
+        copy(byId - id)
       case _ => this.copy()
     }
   }
 
   object Posts {
-    def fromHistory(events: PostEvent*): Posts = events.foldLeft(Posts())(_ apply _)
+    def fromHistory(events: PostEvent*): Posts =
+      events.foldLeft(Posts())(_ apply _)
   }
 }
 
@@ -63,18 +68,21 @@ import bonus_event_sourcing.events.PostAdded
 
 class testEventSourcing extends HandsOnSuite {
 
-  val articleBiaiséSurlES =  PostContent("(_ + _) (<- l'opérateur panda, membre de la confrérie du semi groupe)",
-                                         "à propos de la scalabilité infinie en lecture",
-                                         "bla bla bla")
+  val articleBiaiséSurlES = PostContent(
+    "(_ + _) (<- l'opérateur panda, membre de la confrérie du semi groupe)",
+    "à propos de la scalabilité infinie en lecture",
+    "bla bla bla")
 
-  val articleUnPeuPlusSérieux = PostContent("($/_$/)",
-                                            "L'Event Sourcing, une opportunité pour votre businezz !",
-                                            "bla bla bla")
+  val articleUnPeuPlusSérieux = PostContent(
+    "($/_$/)",
+    "L'Event Sourcing, une opportunité pour votre businezz !",
+    "bla bla bla")
 
   exercice("Ajout de post") {
     val postId = PostId.generate()
 
-    val posts = Posts.fromHistory().apply(PostAdded(postId,articleBiaiséSurlES))
+    val posts =
+      Posts.fromHistory().apply(PostAdded(postId, articleBiaiséSurlES))
 
     posts.get(postId) should be('defined)
 
@@ -86,7 +94,8 @@ class testEventSourcing extends HandsOnSuite {
 
     val posts = Posts.fromHistory(PostAdded(postId, articleBiaiséSurlES))
 
-    val post = posts.apply(PostEdited(postId, articleUnPeuPlusSérieux)).get(postId)
+    val post =
+      posts.apply(PostEdited(postId, articleUnPeuPlusSérieux)).get(postId)
 
     post should be('defined)
 
